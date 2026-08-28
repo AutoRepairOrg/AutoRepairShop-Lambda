@@ -47,7 +47,7 @@ public class JwtValidator : IJwtValidator
 
             var principal = _tokenHandler.ValidateToken(token, validationParameters, out var validatedToken);
 
-            var payload = return new AutoRepairShop.Authorizer.Models.JwtPayload
+            var payload = new AutoRepairShop.Authorizer.Models.JwtPayload
             {
                 Sub = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value 
                       ?? principal.FindFirst("sub")?.Value,
