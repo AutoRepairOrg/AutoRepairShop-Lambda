@@ -48,13 +48,13 @@ public class Function
 
             logger.LogInformation($"JWT validated successfully for user: {payload.Sub}");
 
-            return GenerateAllowPolicy(payload.Sub, request.MethodArn, new Dictionary<string, object>
-            {
-                { "userId", payload.Sub },
-                { "email", payload.Email ?? string.Empty },
-                { "role", payload.Role ?? "user" },
-                { "customerId", payload.CustomerId ?? string.Empty }
-            });
+            var contextOutput = new APIGatewayCustomAuthorizerContextOutput();
+            contextOutput["userId"] = payload.Sub ?? string.Empty;
+            contextOutput["email"] = payload.Email ?? string.Empty;
+            contextOutput["role"] = payload.Role ?? "user";
+            contextOutput["customerId"] = payload.CustomerId ?? string.Empty;
+
+            return GenerateAllowPolicy(payload.Sub, request.MethodArn, contextOutput);
         }
         catch (Exception ex)
         {
@@ -84,7 +84,7 @@ public class Function
     private APIGatewayCustomAuthorizerResponse GenerateAllowPolicy(
         string principalId, 
         string resource, 
-        Dictionary<string, object>? context = null)
+        APIGatewayCustomAuthorizerContextOutput? context = null)
     {
         return GeneratePolicy(principalId, "Allow", resource, context);
     }
@@ -100,7 +100,7 @@ public class Function
         string principalId,
         string effect,
         string resource,
-        Dictionary<string, object>? context = null)
+        APIGatewayCustomAuthorizerContextOutput? context = null)
     {
         var response = new APIGatewayCustomAuthorizerResponse
         {
@@ -120,7 +120,7 @@ public class Function
             }
         };
 
-        if (context != null && context.Any())
+        if (context != null)
         {
             response.Context = context;
         }
