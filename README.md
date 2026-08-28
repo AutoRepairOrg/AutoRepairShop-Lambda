@@ -1,4 +1,3 @@
-# AutoRepairShop-Lambda
 # AutoRepairShop Lambda Authorizer (.NET 8)
 
 Lambda Authorizer desenvolvido em **C# .NET 8** para validação de tokens JWT.
