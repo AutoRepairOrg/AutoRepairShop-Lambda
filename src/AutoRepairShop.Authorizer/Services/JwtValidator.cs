@@ -21,7 +21,7 @@ public class JwtValidator : IJwtValidator
         _tokenHandler = new JwtSecurityTokenHandler();
     }
 
-    public async Task<JwtPayload?> ValidateAsync(string token)
+   public async Task<AutoRepairShop.Authorizer.Models.JwtPayload?> ValidateAsync(string token)
     {
         try
         {
@@ -47,7 +47,7 @@ public class JwtValidator : IJwtValidator
 
             var principal = _tokenHandler.ValidateToken(token, validationParameters, out var validatedToken);
 
-            var payload = new JwtPayload
+            var payload = return new AutoRepairShop.Authorizer.Models.JwtPayload
             {
                 Sub = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value 
                       ?? principal.FindFirst("sub")?.Value,
