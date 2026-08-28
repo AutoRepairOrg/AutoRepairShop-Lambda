@@ -4,5 +4,5 @@ namespace AutoRepairShop.Authorizer.Services;
 
 public interface IJwtValidator
 {
-    Task<JwtPayload?> ValidateAsync(string token);
+    Task<AutoRepairShop.Authorizer.Models.JwtPayload?> ValidateAsync(string token);
 }
