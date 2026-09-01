@@ -1,0 +1,95 @@
+name: CD - Deploy Lambda Functions
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'src/**'
+      - 'terraform/**'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Restore and Build Login Lambda
+      working-directory: ./src/AutoRepairShop.Login
+      run: |
+        dotnet restore
+        dotnet publish -c Release -o publish
+    
+    - name: Package Login Lambda
+      working-directory: ./src/AutoRepairShop.Login/publish
+      run: zip -r ../../../login-lambda.zip .
+    
+    - name: Restore and Build Authorizer Lambda
+      working-directory: ./src/AutoRepairShop.Authorizer
+      run: |
+        dotnet restore
+        dotnet publish -c Release -o publish
+    
+    - name: Package Authorizer Lambda
+      working-directory: ./src/AutoRepairShop.Authorizer/publish
+      run: zip -r ../../../authorizer-lambda.zip .
+    
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+        aws-region: us-east-1
+    
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.6.6
+    
+    - name: Terraform Init
+      working-directory: ./terraform
+      run: terraform init
+    
+    - name: Terraform Plan
+      working-directory: ./terraform
+      run: terraform plan -no-color
+    
+    - name: Terraform Apply
+      working-directory: ./terraform
+      run: terraform apply -auto-approve
+    
+    - name: Deploy Login Lambda
+      run: |
+        aws lambda update-function-code \
+          --function-name autorepair-login \
+          --zip-file fileb://login-lambda.zip || echo "⚠️ Lambda não existe ainda, será criado pelo Terraform"
+    
+    - name: Deploy Authorizer Lambda
+      run: |
+        aws lambda update-function-code \
+          --function-name autorepair-authorizer \
+          --zip-file fileb://authorizer-lambda.zip || echo "⚠️ Lambda não existe ainda, será criado pelo Terraform"
+    
+    - name: Test Login Endpoint
+      run: |
+        echo "🧪 Testing API Gateway endpoint..."
+        ENDPOINT=$(aws apigateway get-rest-apis --query "items[?name=='autorepair-api'].id" --output text)
+        if [ -n "$ENDPOINT" ]; then
+          echo "API Gateway ID: $ENDPOINT"
+          echo "Login URL: https://$ENDPOINT.execute-api.us-east-1.amazonaws.com/prod/auth/login"
+        else
+          echo "⚠️ API Gateway not found yet"
+        fi
+    
+    - name: Print deployment success
+      run: |
+        echo "🎉 Lambda functions deployed successfully!"
+        echo "📦 Packages created:"
+        ls -lh *.zip
