@@ -13,7 +13,6 @@ Este repositório contém duas funções AWS Lambda em .NET 8:
 Ambas integradas com **AWS API Gateway** e **AWS Secrets Manager**.
 
 ---
-
 ## 🛠️ Tecnologias
 
 - **.NET 8** (C#) - Runtime das Lambdas
