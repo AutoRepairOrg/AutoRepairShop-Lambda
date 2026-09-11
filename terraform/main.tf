@@ -30,15 +30,7 @@ provider "kubernetes" {
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
-
-    args = [
-      "eks",
-      "get-token",
-      "--cluster-name",
-      var.eks_cluster_name,
-      "--region",
-      var.aws_region
-    ]
+    args        = ["eks", "get-token", "--cluster-name", var.eks_cluster_name, "--region", var.aws_region]
   }
 }
 
@@ -49,15 +41,7 @@ provider "kubectl" {
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
-
-    args = [
-      "eks",
-      "get-token",
-      "--cluster-name",
-      var.eks_cluster_name,
-      "--region",
-      var.aws_region
-    ]
+    args        = ["eks", "get-token", "--cluster-name", var.eks_cluster_name, "--region", var.aws_region]
   }
 }
 
@@ -75,6 +59,9 @@ variable "api_gateway_id" {
   type = string
 }
 
+# ============================
+# Data sources
+# ============================
 data "aws_iam_role" "lab" {
   name = "LabRole"
 }
@@ -132,17 +119,18 @@ data "aws_api_gateway_resource" "proxy" {
   path        = "/api/{proxy+}"
 }
 
+# ============================
+# Lambda Functions
+# ============================
 resource "aws_lambda_function" "login" {
   function_name = "autorepair-login"
   role          = data.aws_iam_role.lab.arn
   handler       = "AutoRepairShop.Login::AutoRepairShop.Login.Function::FunctionHandler"
   runtime       = "dotnet8"
-  filename      = "${path.module}/../lambda-login/bin/Release/net8.0/linux-x64/publish/lambda.zip"
-  publish       = false
 
-  source_code_hash = filebase64sha256(
-    "${path.module}/../lambda-login/bin/Release/net8.0/linux-x64/publish/lambda.zip"
-  )
+  filename = "${path.module}/../lambda-login/bin/Release/net8.0/linux-x64/publish/lambda.zip"
+
+  source_code_hash = filebase64sha256("${path.module}/../lambda-login/bin/Release/net8.0/linux-x64/publish/lambda.zip")
 
   timeout     = 30
   memory_size = 512
@@ -152,10 +140,7 @@ resource "aws_lambda_function" "login" {
       "subnet-0f866ddddc81bc1f7",
       "subnet-0a19b68a818ec3508"
     ]
-
-    security_group_ids = [
-      data.aws_security_group.lambda_sg.id
-    ]
+    security_group_ids = [data.aws_security_group.lambda_sg.id]
   }
 
   environment {
@@ -173,12 +158,10 @@ resource "aws_lambda_function" "authorizer" {
   role          = data.aws_iam_role.lab.arn
   handler       = "AutoRepairShop.Authorizer::AutoRepairShop.Authorizer.Function::FunctionHandler"
   runtime       = "dotnet8"
-  filename      = "${path.module}/../lambda-authorizer/bin/Release/net8.0/linux-x64/publish/lambda.zip"
-  publish       = false
 
-  source_code_hash = filebase64sha256(
-    "${path.module}/../lambda-authorizer/bin/Release/net8.0/linux-x64/publish/lambda.zip"
-  )
+  filename = "${path.module}/../lambda-authorizer/bin/Release/net8.0/linux-x64/publish/lambda.zip"
+
+  source_code_hash = filebase64sha256("${path.module}/../lambda-authorizer/bin/Release/net8.0/linux-x64/publish/lambda.zip")
 
   timeout     = 30
   memory_size = 512
@@ -190,22 +173,20 @@ resource "aws_lambda_function" "authorizer" {
   }
 }
 
-resource "aws_vpc_security_group_ingress_rule" "lambda_to_sql_nlb_1" {
-  security_group_id            = "sg-023b5ddf7b0aeb66d"
+# ============================
+# Security Group Rules
+# ============================
+resource "aws_vpc_security_group_ingress_rule" "lambda_to_sql_nlb_dynamic" {
+  security_group_id            = element(data.aws_lb.sql_nlb.security_groups, 0)
   referenced_security_group_id = data.aws_security_group.lambda_sg.id
   ip_protocol                  = "tcp"
   from_port                    = 1433
   to_port                      = 1433
 }
 
-resource "aws_vpc_security_group_ingress_rule" "lambda_to_sql_nlb_2" {
-  security_group_id            = "sg-037cd47718d13aaf4"
-  referenced_security_group_id = data.aws_security_group.lambda_sg.id
-  ip_protocol                  = "tcp"
-  from_port                    = 1433
-  to_port                      = 1433
-}
-
+# ============================
+# API Gateway permissions & integrations
+# ============================
 resource "aws_lambda_permission" "apigw_login" {
   statement_id  = "AllowAPIGatewayInvokeLogin"
   action        = "lambda:InvokeFunction"
@@ -230,22 +211,18 @@ resource "aws_api_gateway_authorizer" "jwt_authorizer" {
   identity_source                  = "method.request.header.Authorization"
   authorizer_result_ttl_in_seconds = 300
 
-  depends_on = [
-    aws_lambda_permission.apigw_authorizer
-  ]
+  depends_on = [aws_lambda_permission.apigw_authorizer]
 }
 
 resource "aws_api_gateway_integration" "login" {
-  rest_api_id            = data.aws_api_gateway_rest_api.autorepair_api.id
-  resource_id            = data.aws_api_gateway_resource.login.id
-  http_method            = "POST"
+  rest_api_id             = data.aws_api_gateway_rest_api.autorepair_api.id
+  resource_id             = data.aws_api_gateway_resource.login.id
+  http_method             = "POST"
   integration_http_method = "POST"
-  type                   = "AWS_PROXY"
-  uri                    = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${aws_lambda_function.login.arn}/invocations"
+  type                    = "AWS_PROXY"
+  uri                     = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${aws_lambda_function.login.arn}/invocations"
 
-  depends_on = [
-    aws_lambda_permission.apigw_login
-  ]
+  depends_on = [aws_lambda_permission.apigw_login]
 }
 
 resource "aws_api_gateway_integration" "api_proxy" {
