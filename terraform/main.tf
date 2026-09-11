@@ -61,9 +61,8 @@ resource "aws_lambda_function" "login" {
 
   environment {
     variables = {
-      DB_HOST = "k8s-oficina-sqlserve-5f2488afbf-a8d546719df894d1.elb.us-east-1.amazonaws.com"
-      DB_PORT = "1433"
-      DB_USER = "admin"
+      DB_SECRET_NAME  = "autorepair/sqlserver-credentials"
+      JWT_SECRET_NAME = "autorepair/jwt-secret"
     }
   }
 }
