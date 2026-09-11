@@ -30,6 +30,7 @@ provider "kubernetes" {
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
+
     args = [
       "eks",
       "get-token",
@@ -48,6 +49,7 @@ provider "kubectl" {
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
+
     args = [
       "eks",
       "get-token",
@@ -212,15 +214,6 @@ resource "aws_lambda_permission" "apigw_login" {
   source_arn    = "${data.aws_api_gateway_rest_api.autorepair_api.execution_arn}/*/POST/auth/login"
 }
 
-resource "aws_api_gateway_authorizer" "jwt_authorizer" {
-  name                             = "jwt-authorizer"
-  rest_api_id                      = data.aws_api_gateway_rest_api.autorepair_api.id
-  type                             = "TOKEN"
-  authorizer_uri                   = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${aws_lambda_function.authorizer.arn}/invocations"
-  identity_source                  = "method.request.header.Authorization"
-  authorizer_result_ttl_in_seconds = 300
-}
-
 resource "aws_lambda_permission" "apigw_authorizer" {
   statement_id  = "AllowAPIGatewayInvokeAuthorizer"
   action        = "lambda:InvokeFunction"
@@ -229,13 +222,26 @@ resource "aws_lambda_permission" "apigw_authorizer" {
   source_arn    = "${data.aws_api_gateway_rest_api.autorepair_api.execution_arn}/*"
 }
 
+resource "aws_api_gateway_authorizer" "jwt_authorizer" {
+  name                             = "jwt-authorizer"
+  rest_api_id                      = data.aws_api_gateway_rest_api.autorepair_api.id
+  type                             = "TOKEN"
+  authorizer_uri                   = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${aws_lambda_function.authorizer.arn}/invocations"
+  identity_source                  = "method.request.header.Authorization"
+  authorizer_result_ttl_in_seconds = 300
+
+  depends_on = [
+    aws_lambda_permission.apigw_authorizer
+  ]
+}
+
 resource "aws_api_gateway_integration" "login" {
-  rest_api_id             = data.aws_api_gateway_rest_api.autorepair_api.id
-  resource_id             = data.aws_api_gateway_resource.login.id
-  http_method              = "POST"
-  integration_http_method  = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${aws_lambda_function.login.arn}/invocations"
+  rest_api_id            = data.aws_api_gateway_rest_api.autorepair_api.id
+  resource_id            = data.aws_api_gateway_resource.login.id
+  http_method            = "POST"
+  integration_http_method = "POST"
+  type                   = "AWS_PROXY"
+  uri                    = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${aws_lambda_function.login.arn}/invocations"
 
   depends_on = [
     aws_lambda_permission.apigw_login
@@ -245,7 +251,7 @@ resource "aws_api_gateway_integration" "login" {
 resource "aws_api_gateway_integration" "api_proxy" {
   rest_api_id             = data.aws_api_gateway_rest_api.autorepair_api.id
   resource_id             = data.aws_api_gateway_resource.proxy.id
-  http_method              = "ANY"
+  http_method             = "ANY"
   integration_http_method = "ANY"
   type                    = "HTTP_PROXY"
   uri                     = "http://${data.aws_lb.api_nlb.dns_name}/api/{proxy}"
@@ -253,13 +259,4 @@ resource "aws_api_gateway_integration" "api_proxy" {
   request_parameters = {
     "integration.request.path.proxy" = "method.request.path.proxy"
   }
-}
-
-resource "aws_api_gateway_authorizer" "existing_authorizer" {
-  name = "jwt-authorizer"
-  rest_api_id = data.aws_api_gateway_rest_api.autorepair_api.id
-  type = "TOKEN"
-  authorizer_uri = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${aws_lambda_function.authorizer.arn}/invocations"
-  identity_source = "method.request.header.Authorization"
-  authorizer_result_ttl_in_seconds = 300
 }
