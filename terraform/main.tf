@@ -1,4 +1,3 @@
-```hcl
 terraform {
   required_providers {
     aws = {
@@ -306,6 +305,3 @@ output "login_endpoint" {
 output "api_endpoint" {
   value = "${aws_api_gateway_stage.prod.invoke_url}/api"
 }
-```
-
-**Importante:** apenas formatei. Há alguns pontos nesse Terraform que ainda precisam ser corrigidos antes de um `plan/apply`, principalmente `sg-do-nlb-aqui` e o `DB_HOST` fictício. Além disso, o `aws_secretsmanager_secret_version` mostrado sobrescreve o conteúdo do secret com apenas `username/password`, enquanto seu Lambda espera também `host`, `port` e `dbname`.
