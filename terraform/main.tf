@@ -1,3 +1,4 @@
+```hcl
 terraform {
   required_providers {
     aws = {
@@ -14,11 +15,15 @@ provider "aws" {
 # ============================================================
 # IAM ROLE EXISTENTE
 # ============================================================
+
 data "aws_iam_role" "lab" {
   name = "LabRole"
 }
 
+# ============================================================
 # IMPORTAÇÃO DOS RECURSOS EXISTENTES
+# ============================================================
+
 import {
   to = aws_lambda_permission.apigw_login
   id = "autorepair-login/AllowAPIGatewayInvokeLogin"
@@ -37,6 +42,7 @@ import {
 # ============================================================
 # SECURITY GROUPS
 # ============================================================
+
 resource "aws_security_group" "lambda_sg" {
   name        = "lambda-sqlserver-sg"
   description = "Allows Lambda to access SQL Server NLB"
@@ -53,23 +59,25 @@ resource "aws_security_group" "lambda_sg" {
 # SG ID do NLB: você pode criar ou usar o que o AWS definiu
 resource "aws_security_group_rule" "allow_sql_nlb" {
   type                     = "ingress"
-  from_port               = 1433
-  to_port                 = 1433
-  protocol                = "tcp"
+  from_port                = 1433
+  to_port                  = 1433
+  protocol                 = "tcp"
   source_security_group_id = aws_security_group.lambda_sg.id
-  security_group_id       = "sg-do-nlb-aqui" # Consulte via `aws elbv2 describe-load-balancers`
+  security_group_id        = "sg-do-nlb-aqui" # Consulte via aws elbv2 describe-load-balancers
 }
 
 # ============================================================
 # SECRETS MANAGER PARA DB
 # ============================================================
+
 resource "aws_secretsmanager_secret" "db_secret" {
   name        = "autorepair/rds-credentials"
   description = "SQL Server credentials for Lambda"
 }
 
 resource "aws_secretsmanager_secret_version" "db_secret_ver" {
-  secret_id     = aws_secretsmanager_secret.db_secret.id
+  secret_id = aws_secretsmanager_secret.db_secret.id
+
   secret_string = jsonencode({
     username = "admin"
     password = "S3cur3P@ssword"
@@ -79,6 +87,7 @@ resource "aws_secretsmanager_secret_version" "db_secret_ver" {
 # ============================================================
 # LAMBDA - LOGIN COM VPC + ENV VARS
 # ============================================================
+
 resource "aws_lambda_function" "login" {
   function_name = "autorepair-login"
   role          = data.aws_iam_role.lab.arn
@@ -93,15 +102,21 @@ resource "aws_lambda_function" "login" {
 
   # Lambda dentro da mesma VPC do EKS
   vpc_config {
-    subnet_ids         = ["subnet-0f866ddddc81bc1f7", "subnet-0a19b68a818ec3508"]
-    security_group_ids = [aws_security_group.lambda_sg.id]
+    subnet_ids = [
+      "subnet-0f866ddddc81bc1f7",
+      "subnet-0a19b68a818ec3508",
+    ]
+
+    security_group_ids = [
+      aws_security_group.lambda_sg.id
+    ]
   }
 
   environment {
     variables = {
-      DB_HOST        = "k8s-oficina-sqlserve-xxxxx.elb.us-east-1.amazonaws.com" # NLB DNS do kubectl get svc
-      DB_PORT        = "1433"
-      DB_SECRET_NAME = aws_secretsmanager_secret.db_secret.name
+      DB_HOST         = "k8s-oficina-sqlserve-xxxxx.elb.us-east-1.amazonaws.com"
+      DB_PORT         = "1433"
+      DB_SECRET_NAME  = aws_secretsmanager_secret.db_secret.name
       JWT_SECRET_NAME = "autorepair/jwt-secret"
     }
   }
@@ -110,6 +125,7 @@ resource "aws_lambda_function" "login" {
 # ============================================================
 # LAMBDA - AUTHORIZER
 # ============================================================
+
 resource "aws_lambda_function" "authorizer" {
   function_name    = "autorepair-authorizer"
   role             = data.aws_iam_role.lab.arn
@@ -125,6 +141,7 @@ resource "aws_lambda_function" "authorizer" {
 # ============================================================
 # API GATEWAY CONFIG
 # ============================================================
+
 resource "aws_api_gateway_rest_api" "autorepair_api" {
   name        = "autorepair-api"
   description = "Auto Repair Shop API Gateway"
@@ -134,14 +151,20 @@ resource "aws_api_gateway_rest_api" "autorepair_api" {
   }
 }
 
-# /auth
+# ============================================================
+# /AUTH
+# ============================================================
+
 resource "aws_api_gateway_resource" "auth" {
   rest_api_id = aws_api_gateway_rest_api.autorepair_api.id
   parent_id   = aws_api_gateway_rest_api.autorepair_api.root_resource_id
   path_part   = "auth"
 }
 
-# /auth/login
+# ============================================================
+# /AUTH/LOGIN
+# ============================================================
+
 resource "aws_api_gateway_resource" "login" {
   rest_api_id = aws_api_gateway_rest_api.autorepair_api.id
   parent_id   = aws_api_gateway_resource.auth.id
@@ -156,12 +179,12 @@ resource "aws_api_gateway_method" "login_post" {
 }
 
 resource "aws_api_gateway_integration" "login_lambda" {
-  rest_api_id                = aws_api_gateway_rest_api.autorepair_api.id
-  resource_id                = aws_api_gateway_resource.login.id
-  http_method                = aws_api_gateway_method.login_post.http_method
-  integration_http_method    = "POST"
-  type                       = "AWS_PROXY"
-  uri                        = aws_lambda_function.login.invoke_arn
+  rest_api_id             = aws_api_gateway_rest_api.autorepair_api.id
+  resource_id             = aws_api_gateway_resource.login.id
+  http_method             = aws_api_gateway_method.login_post.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.login.invoke_arn
 }
 
 resource "aws_lambda_permission" "apigw_login" {
@@ -172,18 +195,24 @@ resource "aws_lambda_permission" "apigw_login" {
   source_arn    = "${aws_api_gateway_rest_api.autorepair_api.execution_arn}/*/*"
 }
 
-# Authorizer config
+# ============================================================
+# AUTHORIZER CONFIG
+# ============================================================
+
 resource "aws_api_gateway_authorizer" "jwt_authorizer" {
-  name                           = "jwt-authorizer"
-  rest_api_id                   = aws_api_gateway_rest_api.autorepair_api.id
-  authorizer_uri                = aws_lambda_function.authorizer.invoke_arn
-  authorizer_credentials        = data.aws_iam_role.lab.arn
-  type                          = "TOKEN"
-  identity_source               = "method.request.header.Authorization"
+  name                             = "jwt-authorizer"
+  rest_api_id                      = aws_api_gateway_rest_api.autorepair_api.id
+  authorizer_uri                   = aws_lambda_function.authorizer.invoke_arn
+  authorizer_credentials           = data.aws_iam_role.lab.arn
+  type                             = "TOKEN"
+  identity_source                  = "method.request.header.Authorization"
   authorizer_result_ttl_in_seconds = 0
 }
 
-# /api + proxy
+# ============================================================
+# /API + PROXY
+# ============================================================
+
 resource "aws_api_gateway_resource" "api" {
   rest_api_id = aws_api_gateway_rest_api.autorepair_api.id
   parent_id   = aws_api_gateway_rest_api.autorepair_api.root_resource_id
@@ -197,30 +226,38 @@ resource "aws_api_gateway_resource" "api_proxy" {
 }
 
 resource "aws_api_gateway_method" "api_proxy_any" {
-  rest_api_id    = aws_api_gateway_rest_api.autorepair_api.id
-  resource_id    = aws_api_gateway_resource.api_proxy.id
-  http_method    = "ANY"
-  authorization  = "CUSTOM"
-  authorizer_id  = aws_api_gateway_authorizer.jwt_authorizer.id
+  rest_api_id   = aws_api_gateway_rest_api.autorepair_api.id
+  resource_id   = aws_api_gateway_resource.api_proxy.id
+  http_method   = "ANY"
+  authorization = "CUSTOM"
+  authorizer_id = aws_api_gateway_authorizer.jwt_authorizer.id
+
   request_parameters = {
     "method.request.path.proxy" = true
   }
 }
 
-# Gateway -> NLB -> EKS API
+# ============================================================
+# GATEWAY -> NLB -> EKS API
+# ============================================================
+
 resource "aws_api_gateway_integration" "api_proxy" {
-  rest_api_id                = aws_api_gateway_rest_api.autorepair_api.id
-  resource_id                = aws_api_gateway_resource.api_proxy.id
-  http_method                = aws_api_gateway_method.api_proxy_any.http_method
-  integration_http_method    = "ANY"
-  type                       = "HTTP_PROXY"
-  uri                        = "http://${var.api_nlb_dns}/api/{proxy}"
+  rest_api_id             = aws_api_gateway_rest_api.autorepair_api.id
+  resource_id             = aws_api_gateway_resource.api_proxy.id
+  http_method             = aws_api_gateway_method.api_proxy_any.http_method
+  integration_http_method = "ANY"
+  type                    = "HTTP_PROXY"
+  uri                     = "http://${var.api_nlb_dns}/api/{proxy}"
+
   request_parameters = {
     "integration.request.path.proxy" = "method.request.path.proxy"
   }
 }
 
-# Deploy + Stage
+# ============================================================
+# DEPLOY + STAGE
+# ============================================================
+
 resource "aws_api_gateway_deployment" "api_deployment" {
   rest_api_id = aws_api_gateway_rest_api.autorepair_api.id
 
@@ -254,7 +291,10 @@ resource "aws_api_gateway_stage" "prod" {
   stage_name    = "prod"
 }
 
-# Outputs
+# ============================================================
+# OUTPUTS
+# ============================================================
+
 output "api_gateway_url" {
   value = aws_api_gateway_stage.prod.invoke_url
 }
@@ -266,3 +306,6 @@ output "login_endpoint" {
 output "api_endpoint" {
   value = "${aws_api_gateway_stage.prod.invoke_url}/api"
 }
+```
+
+**Importante:** apenas formatei. Há alguns pontos nesse Terraform que ainda precisam ser corrigidos antes de um `plan/apply`, principalmente `sg-do-nlb-aqui` e o `DB_HOST` fictício. Além disso, o `aws_secretsmanager_secret_version` mostrado sobrescreve o conteúdo do secret com apenas `username/password`, enquanto seu Lambda espera também `host`, `port` e `dbname`.
