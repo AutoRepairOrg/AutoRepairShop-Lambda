@@ -15,6 +15,16 @@ data "aws_iam_role" "lab" {
   name = "LabRole"
 }
 
+import {
+  to = aws_lambda_function.login
+  id = "autorepair-login"
+}
+
+import {
+  to = aws_lambda_function.authorizer
+  id = "autorepair-authorizer"
+}
+
 # ============================================================
 # LAMBDA - LOGIN
 # ============================================================
