@@ -61,7 +61,7 @@ resource "aws_lambda_function" "login" {
 
   environment {
     variables = {
-      DB_SECRET_NAME = "autorepair/rds-credentials"
+      DB_SECRET_NAME  = "autorepair/rds-credentials"
       JWT_SECRET_NAME = "autorepair/jwt-secret"
     }
   }
