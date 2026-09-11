@@ -25,9 +25,9 @@ public class CustomerRepository : ICustomerRepository
             await connection.OpenAsync();
 
             var query = @"
-                SELECT Id, Cpf, Name, Email, IsActive 
-                FROM Customers 
-                WHERE Cpf = @Cpf";
+                SELECT Id, Name, Email, DocumentCpf
+                FROM Customers
+                WHERE DocumentCpf = @Cpf";
 
             using var command = new SqlCommand(query, connection);
             command.Parameters.AddWithValue("@Cpf", cpf);
@@ -38,11 +38,10 @@ public class CustomerRepository : ICustomerRepository
             {
                 return new Customer
                 {
-                    Id = reader.GetInt32(0),
-                    Cpf = reader.GetString(1),
-                    Name = reader.GetString(2),
-                    Email = reader.GetString(3),
-                    IsActive = reader.GetBoolean(4)
+                    Id = reader.GetGuid(0),
+                    Name = reader.GetString(1),
+                    Email = reader.GetString(2),
+                    Cpf = reader.GetString(3)
                 };
             }
 
