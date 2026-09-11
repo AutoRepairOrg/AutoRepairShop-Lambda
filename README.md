@@ -586,4 +586,4 @@ Este projeto faz parte do **Tech Challenge - Fase 3** da FIAP.
 
 - [AutoRepairShop-Api](https://github.com/AutoRepairOrg/AutoRepairShop-Api) - Aplicação principal
 - [AutoRepairShop-Kubernetes](https://github.com/AutoRepairOrg/AutoRepairShop-Kubernetes) - Infraestrutura K8s
-- [AutoRepairShop-Database](https://github.com/AutoRepairOrg/AutoRepairShop-Database) - RDS SQL Server
+- [AutoRepairShop-Database](https://github.com/AutoRepairOrg/AutoRepairShop-Database) - SQL Server
