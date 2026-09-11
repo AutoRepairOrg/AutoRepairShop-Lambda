@@ -55,12 +55,8 @@ variable "eks_cluster_name" {
   default = "autorepairshop-eks"
 }
 
-variable "api_gateway_id" {
-  type = string
-}
-
 # ============================
-# Data sources
+# Datasources
 # ============================
 data "aws_iam_role" "lab" {
   name = "LabRole"
@@ -91,7 +87,7 @@ data "aws_eks_cluster" "eks" {
 }
 
 data "aws_api_gateway_rest_api" "autorepair_api" {
-  id = var.api_gateway_id
+  name = "autorepair-api"
 }
 
 data "aws_api_gateway_resource" "root" {
@@ -128,18 +124,14 @@ resource "aws_lambda_function" "login" {
   handler       = "AutoRepairShop.Login::AutoRepairShop.Login.Function::FunctionHandler"
   runtime       = "dotnet8"
 
-  filename = "${path.module}/../lambda-login/bin/Release/net8.0/linux-x64/publish/lambda.zip"
-
-  source_code_hash = filebase64sha256("${path.module}/../lambda-login/bin/Release/net8.0/linux-x64/publish/lambda.zip")
+  filename         = "${path.module}/../lambda-login/lambda.zip"
+  source_code_hash = filebase64sha256("${path.module}/../lambda-login/lambda.zip")
 
   timeout     = 30
   memory_size = 512
 
   vpc_config {
-    subnet_ids = [
-      "subnet-0f866ddddc81bc1f7",
-      "subnet-0a19b68a818ec3508"
-    ]
+    subnet_ids         = ["subnet-0f866ddddc81bc1f7", "subnet-0a19b68a818ec3508"]
     security_group_ids = [data.aws_security_group.lambda_sg.id]
   }
 
@@ -159,9 +151,8 @@ resource "aws_lambda_function" "authorizer" {
   handler       = "AutoRepairShop.Authorizer::AutoRepairShop.Authorizer.Function::FunctionHandler"
   runtime       = "dotnet8"
 
-  filename = "${path.module}/../lambda-authorizer/bin/Release/net8.0/linux-x64/publish/lambda.zip"
-
-  source_code_hash = filebase64sha256("${path.module}/../lambda-authorizer/bin/Release/net8.0/linux-x64/publish/lambda.zip")
+  filename         = "${path.module}/../lambda-authorizer/lambda.zip"
+  source_code_hash = filebase64sha256("${path.module}/../lambda-authorizer/lambda.zip")
 
   timeout     = 30
   memory_size = 512
@@ -174,9 +165,9 @@ resource "aws_lambda_function" "authorizer" {
 }
 
 # ============================
-# Security Group Rules
+# Ingress Rules
 # ============================
-resource "aws_vpc_security_group_ingress_rule" "lambda_to_sql_nlb_dynamic" {
+resource "aws_vpc_security_group_ingress_rule" "lambda_to_sql_nlb" {
   security_group_id            = element(data.aws_lb.sql_nlb.security_groups, 0)
   referenced_security_group_id = data.aws_security_group.lambda_sg.id
   ip_protocol                  = "tcp"
@@ -185,7 +176,7 @@ resource "aws_vpc_security_group_ingress_rule" "lambda_to_sql_nlb_dynamic" {
 }
 
 # ============================
-# API Gateway permissions & integrations
+# Lambda Permissions & API Gateway integrations
 # ============================
 resource "aws_lambda_permission" "apigw_login" {
   statement_id  = "AllowAPIGatewayInvokeLogin"
