@@ -66,16 +66,6 @@ public class Function
                 });
             }
 
-            if (!customer.IsActive)
-            {
-                context.Logger.LogWarning($"Cliente inativo: {cpf}");
-                return CreateResponse(403, new LoginResponse
-                {
-                    Success = false,
-                    Message = "Cliente inativo"
-                });
-            }
-
             var jwtSecret = await GetJwtSecretAsync();
             var jwtGenerator = new JwtGenerator(jwtSecret);
             var token = jwtGenerator.Generate(customer);
