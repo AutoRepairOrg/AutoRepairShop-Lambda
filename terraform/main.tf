@@ -16,6 +16,11 @@ data "aws_iam_role" "lab" {
 }
 
 import {
+  to = aws_lambda_permission.apigw_login
+  id = "autorepair-login/AllowAPIGatewayInvokeLogin"
+}
+
+import {
   to = aws_lambda_function.login
   id = "autorepair-login"
 }
