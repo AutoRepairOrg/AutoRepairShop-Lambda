@@ -32,10 +32,23 @@ resource "aws_lambda_function" "login" {
   filename         = "../login-lambda.zip"
   source_code_hash = filebase64sha256("../login-lambda.zip")
 
+  # Lambda dentro da mesma VPC do EKS
+  vpc_config {
+    subnet_ids = [
+      "subnet-0f866ddddc81bc1f7",
+      "subnet-0a19b68a818ec3508"
+    ]
+
+    security_group_ids = [
+      "sg-05e8ea27678cd52ea"
+    ]
+  }
+
   environment {
     variables = {
-      DB_USER = "admin"
+      DB_HOST = "k8s-oficina-sqlserve-5f2488afbf-a8d546719df894d1.elb.us-east-1.amazonaws.com"
       DB_PORT = "1433"
+      DB_USER = "admin"
     }
   }
 }
