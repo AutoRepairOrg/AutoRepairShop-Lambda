@@ -30,6 +30,7 @@ provider "kubernetes" {
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
+
     args = [
       "eks",
       "get-token",
@@ -48,6 +49,7 @@ provider "kubectl" {
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
+
     args = [
       "eks",
       "get-token",
@@ -129,8 +131,9 @@ data "aws_api_gateway_resource" "proxy" {
 resource "aws_lambda_function" "login" {
   function_name = "autorepair-login"
   role          = data.aws_iam_role.lab.arn
-  handler       = "AutoRepairShop.Login::AutoRepairShop.Login.Function::FunctionHandler"
-  runtime       = "dotnet8"
+
+  handler = "AutoRepairShop.Login::AutoRepairShop.Login.Function::FunctionHandler"
+  runtime = "dotnet8"
 
   filename = "${path.module}/../lambda-login/lambda.zip"
 
@@ -161,8 +164,9 @@ resource "aws_lambda_function" "login" {
 resource "aws_lambda_function" "authorizer" {
   function_name = "autorepair-authorizer"
   role          = data.aws_iam_role.lab.arn
-  handler       = "AutoRepairShop.Authorizer::AutoRepairShop.Authorizer.Function::FunctionHandler"
-  runtime       = "dotnet8"
+
+  handler = "AutoRepairShop.Authorizer::AutoRepairShop.Authorizer.Function::FunctionHandler"
+  runtime = "dotnet8"
 
   filename = "${path.module}/../lambda-authorizer/lambda.zip"
 
@@ -176,8 +180,12 @@ resource "aws_lambda_function" "authorizer" {
   }
 }
 
+# Permite que a Lambda acesse o SQL Server
+# através dos dois Security Groups associados ao NLB.
 resource "aws_vpc_security_group_ingress_rule" "lambda_to_sql_nlb" {
-  security_group_id            = element(data.aws_lb.sql_nlb.security_groups, 0)
+  for_each = data.aws_lb.sql_nlb.security_groups
+
+  security_group_id            = each.value
   referenced_security_group_id = data.aws_security_group.lambda_sg.id
   ip_protocol                  = "tcp"
   from_port                    = 1433
@@ -189,7 +197,8 @@ resource "aws_lambda_permission" "apigw_login" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.login.function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${data.aws_api_gateway_rest_api.autorepair_api.execution_arn}/*/POST/auth/login"
+
+  source_arn = "${data.aws_api_gateway_rest_api.autorepair_api.execution_arn}/*/POST/auth/login"
 }
 
 resource "aws_lambda_permission" "apigw_authorizer" {
@@ -197,16 +206,18 @@ resource "aws_lambda_permission" "apigw_authorizer" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.authorizer.function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${data.aws_api_gateway_rest_api.autorepair_api.execution_arn}/*"
+
+  source_arn = "${data.aws_api_gateway_rest_api.autorepair_api.execution_arn}/*"
 }
 
 resource "aws_api_gateway_authorizer" "jwt_authorizer" {
-  name                             = "jwt-authorizer"
-  rest_api_id                      = data.aws_api_gateway_rest_api.autorepair_api.id
-  type                             = "TOKEN"
-  authorizer_uri                   = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${aws_lambda_function.authorizer.arn}/invocations"
-  identity_source                  = "method.request.header.Authorization"
+  name                        = "jwt-authorizer"
+  rest_api_id                 = data.aws_api_gateway_rest_api.autorepair_api.id
+  type                        = "TOKEN"
+  identity_source             = "method.request.header.Authorization"
   authorizer_result_ttl_in_seconds = 300
+
+  authorizer_uri = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${aws_lambda_function.authorizer.arn}/invocations"
 
   depends_on = [
     aws_lambda_permission.apigw_authorizer
@@ -219,7 +230,8 @@ resource "aws_api_gateway_integration" "login" {
   http_method             = "POST"
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
-  uri                     = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${aws_lambda_function.login.arn}/invocations"
+
+  uri = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${aws_lambda_function.login.arn}/invocations"
 
   depends_on = [
     aws_lambda_permission.apigw_login
@@ -232,7 +244,8 @@ resource "aws_api_gateway_integration" "api_proxy" {
   http_method             = "ANY"
   integration_http_method = "ANY"
   type                    = "HTTP_PROXY"
-  uri                     = "http://${data.aws_lb.api_nlb.dns_name}/api/{proxy}"
+
+  uri = "http://${data.aws_lb.api_nlb.dns_name}/api/{proxy}"
 
   request_parameters = {
     "integration.request.path.proxy" = "method.request.path.proxy"
