@@ -101,9 +101,10 @@ data "aws_eks_cluster" "eks" {
   name = var.eks_cluster_name
 }
 
-# API GATEWAY QUE VAMOS MANTER
+# API Gateway que vamos manter
 data "aws_api_gateway_rest_api" "autorepair_api" {
-  id = "yxbxp0r0cb"
+  name = "autorepair-api"
+  id   = "yxbxp0r0cb"
 }
 
 data "aws_api_gateway_resource" "root" {
