@@ -27,20 +27,35 @@ data "aws_iam_role" "lab" {
   name = "LabRole"
 }
 
+# EKS Auto Mode / AWS LB Controller usa esta tag (não service.k8s.aws/stack)
 data "aws_lb" "sql_nlb" {
   tags = {
-    "service.k8s.aws/stack" = var.sql_nlb_stack
+    "service.eks.amazonaws.com/stack" = var.sql_nlb_stack
   }
 }
 
 data "aws_lb" "api_nlb" {
   tags = {
-    "service.k8s.aws/stack" = var.api_nlb_stack
+    "service.eks.amazonaws.com/stack" = var.api_nlb_stack
   }
 }
 
-data "aws_secretsmanager_secret" "db_secret" {
+# ============================================================
+# DB SECRET (para a Login Lambda montar a connection string)
+# ============================================================
+
+resource "aws_secretsmanager_secret" "db_secret" {
   name = "autorepair/rds-credentials"
+}
+
+resource "aws_secretsmanager_secret_version" "db_secret" {
+  secret_id = aws_secretsmanager_secret.db_secret.id
+
+  secret_string = jsonencode({
+    username = var.db_username
+    password = var.db_password
+    dbname   = var.db_name
+  })
 }
 
 # ============================================================
@@ -85,7 +100,7 @@ resource "aws_lambda_function" "login" {
     variables = {
       DB_HOST         = data.aws_lb.sql_nlb.dns_name
       DB_PORT         = "1433"
-      DB_SECRET_NAME  = data.aws_secretsmanager_secret.db_secret.name
+      DB_SECRET_NAME  = aws_secretsmanager_secret.db_secret.name
       JWT_SECRET_NAME = aws_secretsmanager_secret.jwt_secret.name
     }
   }
