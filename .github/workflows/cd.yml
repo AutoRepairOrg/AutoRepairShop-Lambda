@@ -1,200 +1,142 @@
 name: CD - Deploy Lambda Functions and API Gateway
 
 on:
-push:
-branches:
-- master
-paths:
-- 'src/**'
-- 'terraform/**'
-- '.github/workflows/cd.yml'
+  push:
+    branches:
+      - master
+    paths:
+      - 'src/**'
+      - 'terraform/**'
+      - '.github/workflows/cd.yml'
 
 jobs:
-build-and-deploy:
-runs-on: ubuntu-latest
+  build-and-deploy:
+    runs-on: ubuntu-latest
 
-```
-steps:
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-  - name: Checkout code
-    uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
 
-  - name: Setup .NET
-    uses: actions/setup-dotnet@v4
-    with:
-      dotnet-version: '8.0.x'
+      - name: Restore and Build Login Lambda
+        working-directory: ./src/AutoRepairShop.Login
+        run: |
+          dotnet restore
+          dotnet publish -c Release -o publish
 
-  # ======================================================
-  # LOGIN LAMBDA
-  # ======================================================
+      - name: Package Login Lambda
+        working-directory: ./src/AutoRepairShop.Login/publish
+        run: |
+          zip -r ../../../login-lambda.zip .
 
-  - name: Restore and Build Login Lambda
-    working-directory: ./src/AutoRepairShop.Login
-    run: |
-      dotnet restore
-      dotnet publish -c Release -o publish
+      - name: Restore and Build Authorizer Lambda
+        working-directory: ./src/AutoRepairShop.Authorizer
+        run: |
+          dotnet restore
+          dotnet publish -c Release -o publish
 
-  - name: Package Login Lambda
-    working-directory: ./src/AutoRepairShop.Login/publish
-    run: |
-      zip -r ../../../login-lambda.zip .
+      - name: Package Authorizer Lambda
+        working-directory: ./src/AutoRepairShop.Authorizer/publish
+        run: |
+          zip -r ../../../authorizer-lambda.zip .
 
-  # ======================================================
-  # AUTHORIZER LAMBDA
-  # ======================================================
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
 
-  - name: Restore and Build Authorizer Lambda
-    working-directory: ./src/AutoRepairShop.Authorizer
-    run: |
-      dotnet restore
-      dotnet publish -c Release -o publish
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
 
-  - name: Package Authorizer Lambda
-    working-directory: ./src/AutoRepairShop.Authorizer/publish
-    run: |
-      zip -r ../../../authorizer-lambda.zip .
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init -input=false
 
-  # ======================================================
-  # AWS
-  # ======================================================
+      - name: Import existing JWT Secret
+        working-directory: ./terraform
+        env:
+          AWS_REGION: us-east-1
+        run: |
+          if ! terraform state list | grep -qx 'aws_secretsmanager_secret.jwt_secret'; then
+            SECRET_ARN=$(aws secretsmanager describe-secret \
+              --secret-id autorepair/jwt-secret \
+              --region "$AWS_REGION" \
+              --query ARN \
+              --output text)
 
-  - name: Configure AWS Credentials
-    uses: aws-actions/configure-aws-credentials@v4
-    with:
-      aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-      aws-region: us-east-1
+            terraform import \
+              -input=false \
+              aws_secretsmanager_secret.jwt_secret \
+              "$SECRET_ARN"
+          fi
 
-  # ======================================================
-  # TERRAFORM
-  # ======================================================
+      - name: Terraform Format Check
+        working-directory: ./terraform
+        run: terraform fmt -check
 
-  - name: Setup Terraform
-    uses: hashicorp/setup-terraform@v3
-    with:
-      terraform_version: 1.6.6
+      - name: Terraform Validate
+        working-directory: ./terraform
+        run: terraform validate
 
-  - name: Terraform Init
-    working-directory: ./terraform
-    run: |
-      terraform init -input=false
+      - name: Check JWT secret
+        env:
+          TF_VAR_jwt_secret_key: ${{ secrets.JWT_SECRET_KEY }}
+        run: |
+          if [ -z "$TF_VAR_jwt_secret_key" ]; then
+            echo "ERRO: JWT_SECRET_KEY não foi encontrada no GitHub."
+            exit 1
+          fi
+          echo "JWT_SECRET_KEY encontrada."
 
-  # ======================================================
-  # IMPORT EXISTING JWT SECRET
-  # ======================================================
+      - name: Terraform Plan
+        working-directory: ./terraform
+        env:
+          TF_VAR_jwt_secret_key: ${{ secrets.JWT_SECRET_KEY }}
+        run: terraform plan -no-color -input=false
 
-  - name: Import existing JWT Secret
-    working-directory: ./terraform
-    env:
-      AWS_REGION: us-east-1
-    run: |
-      if ! terraform state list | grep -qx 'aws_secretsmanager_secret.jwt_secret'; then
-        SECRET_ARN=$(aws secretsmanager describe-secret \
-          --secret-id autorepair/jwt-secret \
-          --region "$AWS_REGION" \
-          --query ARN \
-          --output text)
+      - name: Terraform Apply
+        working-directory: ./terraform
+        env:
+          TF_VAR_jwt_secret_key: ${{ secrets.JWT_SECRET_KEY }}
+        run: terraform apply -auto-approve -input=false
 
-        terraform import \
-          -input=false \
-          aws_secretsmanager_secret.jwt_secret \
-          "$SECRET_ARN"
-      fi
+      - name: Show Terraform Outputs
+        working-directory: ./terraform
+        run: terraform output
 
-  # ======================================================
-  # TERRAFORM VALIDATION
-  # ======================================================
+      - name: Show API Gateway URL
+        run: |
+          API_ID=$(aws apigateway get-rest-apis \
+            --query "items[?name=='autorepair-api'].id" \
+            --output text)
 
-  - name: Terraform Format Check
-    working-directory: ./terraform
-    run: |
-      terraform fmt -check
+          if [ -n "$API_ID" ] && [ "$API_ID" != "None" ]; then
+            echo "========================================"
+            echo "API Gateway criado com sucesso"
+            echo "========================================"
+            echo "API Gateway ID: $API_ID"
+            echo ""
+            echo "Login:"
+            echo "https://${API_ID}.execute-api.us-east-1.amazonaws.com/prod/auth/login"
+            echo ""
+            echo "API:"
+            echo "https://${API_ID}.execute-api.us-east-1.amazonaws.com/prod/api/"
+            echo "========================================"
+          else
+            echo "API Gateway não encontrado"
+            exit 1
+          fi
 
-  - name: Terraform Validate
-    working-directory: ./terraform
-    run: |
-      terraform validate
-
-  # ======================================================
-  # CHECK JWT SECRET
-  # ======================================================
-
-  - name: Check JWT secret
-    env:
-      TF_VAR_jwt_secret_key: ${{ secrets.JWT_SECRET_KEY }}
-    run: |
-      if [ -z "$TF_VAR_jwt_secret_key" ]; then
-        echo "ERRO: JWT_SECRET_KEY não foi encontrada no GitHub."
-        exit 1
-      fi
-
-      echo "JWT_SECRET_KEY encontrada."
-
-  # ======================================================
-  # TERRAFORM PLAN
-  # ======================================================
-
-  - name: Terraform Plan
-    working-directory: ./terraform
-    env:
-      TF_VAR_jwt_secret_key: ${{ secrets.JWT_SECRET_KEY }}
-    run: |
-      terraform plan -no-color -input=false
-
-  # ======================================================
-  # TERRAFORM APPLY
-  # ======================================================
-
-  - name: Terraform Apply
-    working-directory: ./terraform
-    env:
-      TF_VAR_jwt_secret_key: ${{ secrets.JWT_SECRET_KEY }}
-    run: |
-      terraform apply -auto-approve -input=false
-
-  # ======================================================
-  # OUTPUTS
-  # ======================================================
-
-  - name: Show Terraform Outputs
-    working-directory: ./terraform
-    run: |
-      terraform output
-
-  # ======================================================
-  # API GATEWAY URL
-  # ======================================================
-
-  - name: Show API Gateway URL
-    run: |
-      API_ID=$(aws apigateway get-rest-apis \
-        --query "items[?name=='autorepair-api'].id" \
-        --output text)
-
-      if [ -n "$API_ID" ] && [ "$API_ID" != "None" ]; then
-        echo "========================================"
-        echo "API Gateway criado com sucesso"
-        echo "========================================"
-        echo "API Gateway ID: $API_ID"
-        echo ""
-        echo "Login:"
-        echo "https://${API_ID}.execute-api.us-east-1.amazonaws.com/prod/auth/login"
-        echo ""
-        echo "API:"
-        echo "https://${API_ID}.execute-api.us-east-1.amazonaws.com/prod/api/"
-        echo "========================================"
-      else
-        echo "API Gateway não encontrado"
-        exit 1
-      fi
-
-  # ======================================================
-  # LAMBDA PACKAGES
-  # ======================================================
-
-  - name: Show Lambda packages
-    run: |
-      echo "Lambda packages:"
-      ls -lh login-lambda.zip authorizer-lambda.zip
-```
+      - name: Show Lambda packages
+        run: |
+          echo "Lambda packages:"
+          ls -lh login-lambda.zip authorizer-lambda.zip
