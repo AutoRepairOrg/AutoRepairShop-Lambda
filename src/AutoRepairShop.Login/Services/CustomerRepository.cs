@@ -17,34 +17,33 @@ public class CustomerRepository : ICustomerRepository
         _connectionString = connectionString;
     }
 
-    public async Task<Customer?> GetByCpfAsync(string cpf)
+   public async Task<Customer?> GetByCpfAsync(string cpf)
     {
         try
         {
             using var connection = new SqlConnection(_connectionString);
             await connection.OpenAsync();
-
+    
             var query = @"
-                SELECT Id, Name, Email, DocumentCpf
+                SELECT Id, Name, Document
                 FROM Customers
-                WHERE DocumentCpf = @Cpf";
-
+                WHERE Document = @Cpf";
+    
             using var command = new SqlCommand(query, connection);
             command.Parameters.AddWithValue("@Cpf", cpf);
-
+    
             using var reader = await command.ExecuteReaderAsync();
-
+    
             if (await reader.ReadAsync())
             {
                 return new Customer
                 {
                     Id = reader.GetGuid(0),
                     Name = reader.GetString(1),
-                    Email = reader.GetString(2),
-                    Cpf = reader.GetString(3)
+                    Cpf = reader.GetString(2)
                 };
             }
-
+    
             return null;
         }
         catch (Exception ex)
