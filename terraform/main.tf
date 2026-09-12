@@ -79,12 +79,14 @@ data "aws_security_group" "lambda_sg" {
   id = "sg-05e8ea27678cd52ea"
 }
 
+# NLB ATUAL DO SQL SERVER
 data "aws_lb" "sql_nlb" {
-  name = "k8s-oficina-sqlserve-5f2488afbf"
+  name = "k8s-oficina-sqlserve-5453bc1983-fe393dbaf635a91f"
 }
 
+# NLB ATUAL DA API
 data "aws_lb" "api_nlb" {
-  name = "k8s-oficina-apinlb-d48300ca48"
+  name = "k8s-oficina-apinlb-ee4883a0c4-6f04e3c135b9d80c"
 }
 
 data "aws_secretsmanager_secret" "db_secret" {
@@ -99,8 +101,9 @@ data "aws_eks_cluster" "eks" {
   name = var.eks_cluster_name
 }
 
+# API GATEWAY QUE VAMOS MANTER
 data "aws_api_gateway_rest_api" "autorepair_api" {
-  name = "autorepair-api"
+  id = "yxbxp0r0cb"
 }
 
 data "aws_api_gateway_resource" "root" {
@@ -211,10 +214,10 @@ resource "aws_lambda_permission" "apigw_authorizer" {
 }
 
 resource "aws_api_gateway_authorizer" "jwt_authorizer" {
-  name                        = "jwt-authorizer"
-  rest_api_id                 = data.aws_api_gateway_rest_api.autorepair_api.id
-  type                        = "TOKEN"
-  identity_source             = "method.request.header.Authorization"
+  name                             = "jwt-authorizer"
+  rest_api_id                      = data.aws_api_gateway_rest_api.autorepair_api.id
+  type                             = "TOKEN"
+  identity_source                  = "method.request.header.Authorization"
   authorizer_result_ttl_in_seconds = 300
 
   authorizer_uri = "arn:aws:apigateway:${var.aws_region}:lambda:path/2015-03-31/functions/${aws_lambda_function.authorizer.arn}/invocations"
