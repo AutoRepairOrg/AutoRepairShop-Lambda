@@ -40,3 +40,8 @@ output "login_lambda_name" {
 output "authorizer_lambda_name" {
   value = aws_lambda_function.authorizer.function_name
 }
+
+output "login_lambda_security_group_id" {
+  description = "Security group created for the Login Lambda"
+  value       = aws_security_group.login_lambda.id
+}

@@ -38,12 +38,6 @@ variable "lambda_subnet_ids" {
   ]
 }
 
-variable "lambda_security_group_id" {
-  description = "Security group used by Login Lambda in the VPC"
-  type        = string
-  default     = "sg-05e8ea27678cd52e"
-}
-
 variable "api_nlb_stack" {
   description = "EKS LB Controller stack tag for the API NLB (namespace/service)"
   type        = string
