@@ -1,6 +1,14 @@
-variable "api_nlb_dns" {
-  description = "DNS do NLB que expõe a API no EKS"
-  type        = string
+variable "aws_region" {
+  type    = string
+  default = "us-east-1"
+}
 
-  default = "k8s-oficina-apinlb-d48300ca48-b2aee7cea5a456da.elb.us-east-1.amazonaws.com"
+variable "eks_cluster_name" {
+  type    = string
+  default = "autorepairshop-eks"
+}
+
+variable "jwt_secret_key" {
+  type      = string
+  sensitive = true
 }
