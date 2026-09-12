@@ -1,4 +1,3 @@
-```hcl
 terraform {
   required_version = ">= 1.5.0"
 
@@ -319,4 +318,4 @@ resource "aws_api_gateway_integration" "api_proxy" {
     "integration.request.path.proxy" = "method.request.path.proxy"
   }
 }
-```
+
