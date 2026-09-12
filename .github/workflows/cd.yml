@@ -84,6 +84,27 @@ jobs:
             fi
           fi
 
+      - name: Import existing DB Secret
+        working-directory: ./terraform
+        env:
+          AWS_REGION: us-east-1
+          TF_VAR_jwt_secret_key: ${{ secrets.JWT_SECRET_KEY }}
+        run: |
+          if ! terraform state list | grep -qx 'aws_secretsmanager_secret.db_secret'; then
+            if aws secretsmanager describe-secret --secret-id autorepair/rds-credentials --region "$AWS_REGION" >/dev/null 2>&1; then
+              SECRET_ARN=$(aws secretsmanager describe-secret \
+                --secret-id autorepair/rds-credentials \
+                --region "$AWS_REGION" \
+                --query ARN \
+                --output text)
+
+              terraform import \
+                -input=false \
+                aws_secretsmanager_secret.db_secret \
+                "$SECRET_ARN"
+            fi
+          fi
+
       - name: Import existing API Gateway
         working-directory: ./terraform
         env:
@@ -102,6 +123,22 @@ jobs:
                 -input=false \
                 aws_api_gateway_rest_api.autorepair_api \
                 "$API_ID"
+            fi
+          fi
+
+      - name: Import existing Authorizer Lambda
+        working-directory: ./terraform
+        env:
+          AWS_REGION: us-east-1
+          TF_VAR_jwt_secret_key: ${{ secrets.JWT_SECRET_KEY }}
+        run: |
+          if ! terraform state list | grep -qx 'aws_lambda_function.authorizer'; then
+            if aws lambda get-function --function-name autorepair-authorizer --region "$AWS_REGION" >/dev/null 2>&1; then
+              echo "Importing existing Authorizer Lambda"
+              terraform import \
+                -input=false \
+                aws_lambda_function.authorizer \
+                autorepair-authorizer
             fi
           fi
 
