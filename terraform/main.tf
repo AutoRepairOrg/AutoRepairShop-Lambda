@@ -67,6 +67,10 @@ provider "kubectl" {
   }
 }
 
+# ============================================================
+# VARIABLES
+# ============================================================
+
 variable "aws_region" {
   type    = string
   default = "us-east-1"
@@ -76,6 +80,15 @@ variable "eks_cluster_name" {
   type    = string
   default = "autorepairshop-eks"
 }
+
+variable "jwt_secret_key" {
+  type      = string
+  sensitive = true
+}
+
+# ============================================================
+# DATA SOURCES
+# ============================================================
 
 data "aws_iam_role" "lab" {
   name = "LabRole"
@@ -99,10 +112,6 @@ data "aws_lb" "api_nlb" {
 
 data "aws_secretsmanager_secret" "db_secret" {
   name = "autorepair/rds-credentials"
-}
-
-data "aws_secretsmanager_secret" "jwt_secret" {
-  name = "autorepair/jwt-secret"
 }
 
 data "aws_api_gateway_rest_api" "autorepair_api" {
@@ -134,6 +143,26 @@ data "aws_api_gateway_resource" "proxy" {
   path        = "/api/{proxy+}"
 }
 
+# ============================================================
+# JWT SECRET
+# ============================================================
+
+resource "aws_secretsmanager_secret" "jwt_secret" {
+  name = "autorepair/jwt-secret"
+}
+
+resource "aws_secretsmanager_secret_version" "jwt_secret" {
+  secret_id = aws_secretsmanager_secret.jwt_secret.id
+
+  secret_string = jsonencode({
+    key = var.jwt_secret_key
+  })
+}
+
+# ============================================================
+# LAMBDA - LOGIN
+# ============================================================
+
 resource "aws_lambda_function" "login" {
   function_name = "autorepair-login"
   role          = data.aws_iam_role.lab.arn
@@ -163,10 +192,14 @@ resource "aws_lambda_function" "login" {
       DB_HOST         = data.aws_lb.sql_nlb.dns_name
       DB_PORT         = "1433"
       DB_SECRET_NAME  = data.aws_secretsmanager_secret.db_secret.name
-      JWT_SECRET_NAME = data.aws_secretsmanager_secret.jwt_secret.name
+      JWT_SECRET_NAME = aws_secretsmanager_secret.jwt_secret.name
     }
   }
 }
+
+# ============================================================
+# LAMBDA - AUTHORIZER
+# ============================================================
 
 resource "aws_lambda_function" "authorizer" {
   function_name = "autorepair-authorizer"
@@ -182,10 +215,14 @@ resource "aws_lambda_function" "authorizer" {
 
   environment {
     variables = {
-      JWT_SECRET_NAME = data.aws_secretsmanager_secret.jwt_secret.name
+      JWT_SECRET_NAME = aws_secretsmanager_secret.jwt_secret.name
     }
   }
 }
+
+# ============================================================
+# SECURITY GROUP - LAMBDA -> SQL NLB
+# ============================================================
 
 resource "aws_vpc_security_group_ingress_rule" "lambda_to_sql_nlb" {
   for_each = data.aws_lb.sql_nlb.security_groups
@@ -197,6 +234,10 @@ resource "aws_vpc_security_group_ingress_rule" "lambda_to_sql_nlb" {
   to_port                      = 1433
 }
 
+# ============================================================
+# LAMBDA PERMISSION - API GATEWAY -> LOGIN
+# ============================================================
+
 resource "aws_lambda_permission" "apigw_login" {
   statement_id  = "AllowAPIGatewayInvokeLogin"
   action        = "lambda:InvokeFunction"
@@ -206,6 +247,10 @@ resource "aws_lambda_permission" "apigw_login" {
   source_arn = "${data.aws_api_gateway_rest_api.autorepair_api.execution_arn}/*/POST/auth/login"
 }
 
+# ============================================================
+# LAMBDA PERMISSION - API GATEWAY -> AUTHORIZER
+# ============================================================
+
 resource "aws_lambda_permission" "apigw_authorizer" {
   statement_id  = "AllowAPIGatewayInvokeAuthorizer"
   action        = "lambda:InvokeFunction"
@@ -214,6 +259,10 @@ resource "aws_lambda_permission" "apigw_authorizer" {
 
   source_arn = "${data.aws_api_gateway_rest_api.autorepair_api.execution_arn}/*"
 }
+
+# ============================================================
+# API GATEWAY AUTHORiZER
+# ============================================================
 
 resource "aws_api_gateway_authorizer" "jwt_authorizer" {
   name                             = "jwt-authorizer"
@@ -229,6 +278,10 @@ resource "aws_api_gateway_authorizer" "jwt_authorizer" {
   ]
 }
 
+# ============================================================
+# API GATEWAY -> LOGIN LAMBDA
+# ============================================================
+
 resource "aws_api_gateway_integration" "login" {
   rest_api_id             = data.aws_api_gateway_rest_api.autorepair_api.id
   resource_id             = data.aws_api_gateway_resource.login.id
@@ -242,6 +295,10 @@ resource "aws_api_gateway_integration" "login" {
     aws_lambda_permission.apigw_login
   ]
 }
+
+# ============================================================
+# API GATEWAY -> API NO EKS
+# ============================================================
 
 resource "aws_api_gateway_integration" "api_proxy" {
   rest_api_id             = data.aws_api_gateway_rest_api.autorepair_api.id
