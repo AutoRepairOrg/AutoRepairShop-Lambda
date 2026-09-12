@@ -13,6 +13,22 @@ variable "jwt_secret_key" {
   sensitive = true
 }
 
+variable "db_username" {
+  type    = string
+  default = "sa"
+}
+
+variable "db_password" {
+  type      = string
+  sensitive = true
+  default   = "StrongPassword@123"
+}
+
+variable "db_name" {
+  type    = string
+  default = "AutoRepairShopDb"
+}
+
 variable "lambda_subnet_ids" {
   description = "Private subnets for Login Lambda (VPC access to SQL NLB)"
   type        = list(string)
@@ -29,13 +45,13 @@ variable "lambda_security_group_id" {
 }
 
 variable "api_nlb_stack" {
-  description = "AWS LB Controller stack tag for the API NLB (namespace/service)"
+  description = "EKS LB Controller stack tag for the API NLB (namespace/service)"
   type        = string
   default     = "oficina/api-nlb"
 }
 
 variable "sql_nlb_stack" {
-  description = "AWS LB Controller stack tag for the SQL NLB (namespace/service)"
+  description = "EKS LB Controller stack tag for the SQL NLB (namespace/service)"
   type        = string
   default     = "oficina/sqlserver-nlb"
 }
