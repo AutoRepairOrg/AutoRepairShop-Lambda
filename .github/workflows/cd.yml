@@ -8,6 +8,7 @@ on:
       - 'src/**'
       - 'terraform/**'
       - '.github/workflows/cd.yml'
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
