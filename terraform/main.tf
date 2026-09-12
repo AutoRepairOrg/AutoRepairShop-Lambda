@@ -2,7 +2,7 @@ terraform {
   required_version = ">= 1.5.0"
 
   backend "s3" {
-    bucket = "autorepairshop-terraform-state-lab"
+    bucket = "autorepair-tfstate-784355837864"
     key    = "lambda/terraform.tfstate"
     region = "us-east-1"
   }
