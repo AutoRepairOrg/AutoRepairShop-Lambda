@@ -8,6 +8,7 @@ on:
       - 'src/**'
       - 'terraform/**'
       - '.github/workflows/cd.yml'
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
@@ -69,16 +70,39 @@ jobs:
           TF_VAR_jwt_secret_key: ${{ secrets.JWT_SECRET_KEY }}
         run: |
           if ! terraform state list | grep -qx 'aws_secretsmanager_secret.jwt_secret'; then
-            SECRET_ARN=$(aws secretsmanager describe-secret \
-              --secret-id autorepair/jwt-secret \
+            if aws secretsmanager describe-secret --secret-id autorepair/jwt-secret --region "$AWS_REGION" >/dev/null 2>&1; then
+              SECRET_ARN=$(aws secretsmanager describe-secret \
+                --secret-id autorepair/jwt-secret \
+                --region "$AWS_REGION" \
+                --query ARN \
+                --output text)
+
+              terraform import \
+                -input=false \
+                aws_secretsmanager_secret.jwt_secret \
+                "$SECRET_ARN"
+            fi
+          fi
+
+      - name: Import existing API Gateway
+        working-directory: ./terraform
+        env:
+          AWS_REGION: us-east-1
+          TF_VAR_jwt_secret_key: ${{ secrets.JWT_SECRET_KEY }}
+        run: |
+          if ! terraform state list | grep -qx 'aws_api_gateway_rest_api.autorepair_api'; then
+            API_ID=$(aws apigateway get-rest-apis \
               --region "$AWS_REGION" \
-              --query ARN \
+              --query "items[?name=='autorepair-api'].id" \
               --output text)
 
-            terraform import \
-              -input=false \
-              aws_secretsmanager_secret.jwt_secret \
-              "$SECRET_ARN"
+            if [ -n "$API_ID" ] && [ "$API_ID" != "None" ]; then
+              echo "Importing existing API Gateway: $API_ID"
+              terraform import \
+                -input=false \
+                aws_api_gateway_rest_api.autorepair_api \
+                "$API_ID"
+            fi
           fi
 
       - name: Terraform Format Check
@@ -121,27 +145,18 @@ jobs:
           terraform output
 
       - name: Show API Gateway URL
+        working-directory: ./terraform
         run: |
-          API_ID=$(aws apigateway get-rest-apis \
-            --query "items[?name=='autorepair-api'].id" \
-            --output text)
-
-          if [ -n "$API_ID" ] && [ "$API_ID" != "None" ]; then
-            echo "========================================"
-            echo "API Gateway criado com sucesso"
-            echo "========================================"
-            echo "API Gateway ID: $API_ID"
-            echo ""
-            echo "Login:"
-            echo "https://${API_ID}.execute-api.us-east-1.amazonaws.com/prod/auth/login"
-            echo ""
-            echo "API:"
-            echo "https://${API_ID}.execute-api.us-east-1.amazonaws.com/prod/api/"
-            echo "========================================"
-          else
-            echo "API Gateway não encontrado"
-            exit 1
-          fi
+          echo "========================================"
+          echo "API Gateway"
+          echo "========================================"
+          terraform output -raw login_url || true
+          echo
+          terraform output -raw api_proxy_url || true
+          echo
+          terraform output -raw health_url || true
+          echo
+          echo "========================================"
 
       - name: Show Lambda packages
         run: |
