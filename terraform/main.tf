@@ -92,7 +92,7 @@ data "aws_lb" "sql_nlb" {
 }
 
 data "aws_lb" "api_nlb" {
-  name = "k8s-oficina-apinlb-ee4883a0c4"
+  name = "k8s-oficina-apinlb-cde05c4410"
 }
 
 data "aws_secretsmanager_secret" "db_secret" {
@@ -299,4 +299,3 @@ resource "aws_api_gateway_integration" "api_proxy" {
     "integration.request.path.proxy" = "method.request.path.proxy"
   }
 }
-
