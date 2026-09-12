@@ -1,3 +1,4 @@
+```hcl
 terraform {
   required_version = ">= 1.5.0"
 
@@ -135,7 +136,7 @@ resource "aws_lambda_function" "login" {
   handler = "AutoRepairShop.Login::AutoRepairShop.Login.Function::FunctionHandler"
   runtime = "dotnet8"
 
-  filename = "${path.module}/../lambda-login/lambda.zip"
+  filename = "${path.module}/../login-lambda.zip"
 
   timeout     = 30
   memory_size = 512
@@ -168,7 +169,7 @@ resource "aws_lambda_function" "authorizer" {
   handler = "AutoRepairShop.Authorizer::AutoRepairShop.Authorizer.Function::FunctionHandler"
   runtime = "dotnet8"
 
-  filename = "${path.module}/../lambda-authorizer/lambda.zip"
+  filename = "${path.module}/../authorizer-lambda.zip"
 
   timeout     = 30
   memory_size = 512
