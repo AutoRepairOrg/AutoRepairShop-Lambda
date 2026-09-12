@@ -1,3 +1,4 @@
+```hcl
 terraform {
   required_version = ">= 1.5.0"
 
@@ -141,7 +142,8 @@ resource "aws_lambda_function" "login" {
   handler = "AutoRepairShop.Login::AutoRepairShop.Login.Function::FunctionHandler"
   runtime = "dotnet8"
 
-  filename = "${path.module}/../login-lambda.zip"
+  filename         = "${path.module}/../login-lambda.zip"
+  source_code_hash = filebase64sha256("${path.module}/../login-lambda.zip")
 
   timeout     = 30
   memory_size = 512
@@ -255,3 +257,4 @@ resource "aws_api_gateway_integration" "api_proxy" {
     "integration.request.path.proxy" = "method.request.path.proxy"
   }
 }
+```
