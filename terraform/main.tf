@@ -342,7 +342,7 @@ resource "aws_api_gateway_deployment" "prod" {
 }
 
 resource "aws_api_gateway_stage" "prod" {
-  rest_api_id    = aws_api_gateway_rest_api.autorepair_api.id
-  deployment_id  = aws_api_gateway_deployment.prod.id
-  stage_name     = "prod"
+  rest_api_id   = aws_api_gateway_rest_api.autorepair_api.id
+  deployment_id = aws_api_gateway_deployment.prod.id
+  stage_name    = "prod"
 }
