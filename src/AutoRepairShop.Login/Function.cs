@@ -109,7 +109,21 @@ public class Function
         if (secret == null)
             throw new Exception("Secret do banco de dados está vazio");
 
-        _cachedConnectionString = $"Server={secret["host"]},{secret["port"]};Database={secret["dbname"]};User Id={secret["username"]};Password={secret["password"]};TrustServerCertificate=True;";
+       var dbHost = Environment.GetEnvironmentVariable("DB_HOST");
+        var dbPort = Environment.GetEnvironmentVariable("DB_PORT");
+        
+        if (string.IsNullOrWhiteSpace(dbHost))
+            throw new Exception("DB_HOST não configurado");
+        
+        if (string.IsNullOrWhiteSpace(dbPort))
+            dbPort = "1433";
+        
+        _cachedConnectionString =
+            $"Server={dbHost},{dbPort};" +
+            $"Database={secret["dbname"]};" +
+            $"User Id={secret["username"]};" +
+            $"Password={secret["password"]};" +
+            "TrustServerCertificate=True;";
 
         return _cachedConnectionString;
     }
