@@ -66,8 +66,15 @@ public class Function
 
     private string? ExtractToken(APIGatewayCustomAuthorizerRequest request)
     {
-        var authHeader = request.Headers?.FirstOrDefault(h => 
-            h.Key.Equals("Authorization", StringComparison.OrdinalIgnoreCase)).Value;
+        // TOKEN authorizers receive the header value in AuthorizationToken,
+        // not in Headers (Headers is used by REQUEST authorizers).
+        var authHeader = request.AuthorizationToken;
+
+        if (string.IsNullOrWhiteSpace(authHeader) && request.Headers != null)
+        {
+            authHeader = request.Headers.FirstOrDefault(h =>
+                h.Key.Equals("Authorization", StringComparison.OrdinalIgnoreCase)).Value;
+        }
 
         if (string.IsNullOrWhiteSpace(authHeader))
             return null;
