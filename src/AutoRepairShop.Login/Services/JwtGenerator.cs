@@ -36,7 +36,7 @@ public class JwtGenerator : IJwtGenerator
             new Claim("customerId", customer.Id.ToString()),
             new Claim("cpf", customer.Cpf),
             new Claim("name", customer.Name),
-            new Claim(ClaimTypes.Role, "customer"),
+            new Claim(ClaimTypes.Role, "Customer"),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
