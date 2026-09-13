@@ -29,7 +29,9 @@ public class Function
 
         try
         {
-            var loginRequest = JsonSerializer.Deserialize<LoginRequest>(request.Body);
+            var loginRequest = JsonSerializer.Deserialize<LoginRequest>(
+                request.Body,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
             if (loginRequest == null || string.IsNullOrWhiteSpace(loginRequest.Cpf))
             {

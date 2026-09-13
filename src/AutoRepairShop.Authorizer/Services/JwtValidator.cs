@@ -95,7 +95,8 @@ public class JwtValidator : IJwtValidator
             return _cachedSecret;
         }
 
-        var secret = await _secretsManager.GetSecretAsync("autorepair/jwt-secret");
+        var secretName = Environment.GetEnvironmentVariable("JWT_SECRET_NAME") ?? "autorepair/jwt-secret";
+        var secret = await _secretsManager.GetSecretAsync(secretName);
 
         if (secret != null)
         {
